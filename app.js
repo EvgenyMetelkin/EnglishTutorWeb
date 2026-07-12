@@ -309,7 +309,9 @@ async function sendMessage(text) {
 
 initTheme();
 $("theme-toggle").addEventListener("click", toggleTheme);
-$("menu-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+$("info-toggle").addEventListener("click", () => { $("info-overlay").hidden = false; });
+$("info-close").addEventListener("click", () => { $("info-overlay").hidden = true; });
+$("info-overlay").addEventListener("click", (e) => { if (e.target === $("info-overlay")) $("info-overlay").hidden = true; });
 
 $("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); populatePlans(); });
 $("lang-select").addEventListener("change", (e) => { state.lang = e.target.value; saveState(); });

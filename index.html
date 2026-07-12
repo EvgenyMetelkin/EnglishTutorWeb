@@ -8,8 +8,27 @@
 </head>
 <body>
   <div class="app">
+    <main class="chat">
+      <header class="chat-header">
+        <h1>Репетитор английского</h1>
+        <button id="theme-toggle" class="icon" type="button" aria-label="Тема">◐</button>
+      </header>
+
+      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <form id="composer" class="composer">
+        <textarea id="input" rows="1" placeholder="Напишите фразу на английском…"></textarea>
+        <button id="send" type="submit">Отправить</button>
+        <button id="stop" type="button" class="danger" hidden>Стоп</button>
+      </form>
+    </main>
+
     <aside class="sidebar" id="sidebar">
-      <h2>Настройки</h2>
+      <p class="sidebar-desc">Чат с ИИ-репетитором для практики английского. Пишите фразы — репетитор исправит ошибки, объяснит правила и задаст вопросы.</p>
+      <div class="sidebar-header">
+        <h2>Настройки</h2>
+        <button id="info-toggle" class="icon" type="button" aria-label="Информация">ℹ</button>
+      </div>
 
       <label class="field">
         <span>Модель</span>
@@ -36,25 +55,36 @@
 
       <button id="clear-chat" class="secondary" type="button">Очистить чат</button>
     </aside>
-
-    <main class="chat">
-      <header class="chat-header">
-        <button id="menu-toggle" class="icon" type="button" aria-label="Меню">☰</button>
-        <h1>Репетитор английского</h1>
-        <button id="theme-toggle" class="icon" type="button" aria-label="Тема">◐</button>
-      </header>
-
-      <div id="messages" class="messages" aria-live="polite"></div>
-
-      <form id="composer" class="composer">
-        <textarea id="input" rows="1" placeholder="Напишите фразу на английском…"></textarea>
-        <button id="send" type="submit">Отправить</button>
-        <button id="stop" type="button" class="danger" hidden>Стоп</button>
-      </form>
-    </main>
   </div>
 
   <div id="toast" class="toast" hidden></div>
+
+  <div id="info-overlay" class="info-overlay" hidden>
+    <div id="info-modal" class="info-modal">
+      <button id="info-close" class="info-close" type="button" aria-label="Закрыть">×</button>
+      <h2>О проекте</h2>
+      <p>«Репетитор английского» — одностраничное приложение для практики английского языка в формате чата. В роли репетитора выступает локальная языковая модель (по умолчанию Llama 3.2 3B), работающая через <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>. Все ответы приходят потоково и остаются короткими, чтобы приложение работало быстро даже на слабом устройстве.</p>
+      <p>Приложение не требует серверной части и работает полностью в браузере. Настройки и история чата сохраняются локально и переживают перезагрузку страницы.</p>
+
+      <h2>Стили репетитора</h2>
+      <dl>
+        <dt>Естественный диалог</dt>
+        <dd>Если фраза формально правильная, но звучит неестественно, репетитор предлагает более живой, разговорный вариант. Грамматические ошибки без необходимости не исправляются.</dd>
+
+        <dt>Исправление предложения</dt>
+        <dd>Только исправленный вариант предложения. Никаких объяснений, комментариев или дополнительных слов. Если предложение уже верно — повторяет его без изменений.</dd>
+
+        <dt>Объяснение ошибки</dt>
+        <dd>Коротко и по делу объясняет, что именно было неверно. Может указать правило, но без лекций. Затем даёт исправленный вариант.</dd>
+
+        <dt>Краткий совет</dt>
+        <dd>Даёт мини-правило или мнемоническую подсказку, чтобы ученик запомнил принцип. Полное исправление даётся только если нужно для совета.</dd>
+
+        <dt>Личный репетитор</dt>
+        <dd>Проводит занятие по плану урока. Обрабатывает ответ пользователя (исправляет, объясняет, даёт совет) и затем задаёт следующий вопрос из плана. В боковой панели можно выбрать план урока.</dd>
+      </dl>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>
