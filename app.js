@@ -127,6 +127,12 @@ function renderMessage(role, content) {
   return el;
 }
 
+function restoreHistory() {
+  for (const m of state.messages) {
+    if (m.role === "user" || m.role === "assistant") renderMessage(m.role, m.content);
+  }
+}
+
 let controller = null;
 
 function setGenerating(on) {
@@ -180,6 +186,7 @@ $("model-select").addEventListener("change", (e) => { state.model = e.target.val
 $("refresh-models").addEventListener("click", refreshModels);
 
 populateStyles();
+restoreHistory();
 refreshModels();
 
 $("composer").addEventListener("submit", (e) => {
@@ -205,3 +212,10 @@ $("input").addEventListener("keydown", (e) => {
 });
 
 $("stop").addEventListener("click", () => { if (controller) controller.abort(); });
+
+$("clear-chat").addEventListener("click", () => {
+  if (controller) controller.abort();
+  state.messages = [];
+  saveState();
+  $("messages").innerHTML = "";
+});
