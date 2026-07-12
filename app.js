@@ -1,9 +1,9 @@
-import { STYLES, DEFAULT_STYLE } from "./prompts.js";
+import { STYLES, DEFAULT_STYLE, LANGUAGES, DEFAULT_LANG, SAMPLING, KEEP_ALIVE } from "./prompts.js";
 
 const OLLAMA_BASE = "http://localhost:11434";
 const TURN_WINDOW = 4; // number of user+assistant pairs to send as context
 
-const KEYS = { model: "et.model", style: "et.style", theme: "et.theme", messages: "et.messages" };
+const KEYS = { model: "et.model", style: "et.style", lang: "et.lang", theme: "et.theme", messages: "et.messages" };
 
 function initTheme() {
   const saved = localStorage.getItem(KEYS.theme);
@@ -33,19 +33,28 @@ function loadMessages() {
 const state = {
   model: localStorage.getItem(KEYS.model) || "llama3.2:3b",
   style: localStorage.getItem(KEYS.style) || DEFAULT_STYLE,
+  lang: localStorage.getItem(KEYS.lang) || DEFAULT_LANG,
   messages: loadMessages()
 };
 
 function saveState() {
   localStorage.setItem(KEYS.model, state.model);
   localStorage.setItem(KEYS.style, state.style);
+  localStorage.setItem(KEYS.lang, state.lang);
   localStorage.setItem(KEYS.messages, JSON.stringify(state.messages));
 }
 
-function buildMessages(style, history, input) {
-  const sys = { role: "system", content: (STYLES[style] || STYLES[DEFAULT_STYLE]).system };
+function buildMessages(style, lang, history, input) {
+  const styleDef = STYLES[style] || STYLES[DEFAULT_STYLE];
+  const langPrompt = (LANGUAGES[lang] || LANGUAGES[DEFAULT_LANG]).system;
+  const sys = { role: "system", content: `${styleDef.system} ${langPrompt}` };
   const window = history.slice(-TURN_WINDOW * 2);
   return [sys, ...window, { role: "user", content: input }];
+}
+
+function styleOptions(style) {
+  const styleDef = STYLES[style] || STYLES[DEFAULT_STYLE];
+  return { ...SAMPLING, ...(styleDef.options || {}) };
 }
 
 let toastTimer;
@@ -64,6 +73,17 @@ function populateStyles() {
     const opt = document.createElement("option");
     opt.value = key; opt.textContent = label;
     if (key === state.style) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function populateLanguages() {
+  const sel = $("lang-select");
+  sel.innerHTML = "";
+  for (const [key, { label }] of Object.entries(LANGUAGES)) {
+    const opt = document.createElement("option");
+    opt.value = key; opt.textContent = label;
+    if (key === state.lang) opt.selected = true;
     sel.appendChild(opt);
   }
 }
@@ -179,7 +199,7 @@ async function sendMessage(text) {
   if (controller) { controller.abort(); controller = null; }
   commitPartial();
 
-  const msgs = buildMessages(state.style, state.messages, text);
+  const msgs = buildMessages(state.style, state.lang, state.messages, text);
   state.messages.push({ role: "user", content: text });
   renderMessage("user", text);
   saveState();
@@ -223,10 +243,12 @@ $("theme-toggle").addEventListener("click", toggleTheme);
 $("menu-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
 
 $("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); });
+$("lang-select").addEventListener("change", (e) => { state.lang = e.target.value; saveState(); });
 $("model-select").addEventListener("change", (e) => { state.model = e.target.value; saveState(); });
 $("refresh-models").addEventListener("click", refreshModels);
 
 populateStyles();
+populateLanguages();
 restoreHistory();
 refreshModels();
 

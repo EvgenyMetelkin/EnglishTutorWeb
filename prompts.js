@@ -27,3 +27,17 @@ export const STYLES = {
 };
 
 export const DEFAULT_STYLE = "personal";
+
+export const LANGUAGES = {
+  ru: {
+    label: "Русский",
+    system:
+      "Говори только по-русски (объяснения, вопросы, похвала). Исключение — учебный материал: все исправления, примеры, цитаты, слова и фразы на английском — выводи их на английском, никогда не переводи на русский."
+  },
+  en: {
+    label: "English",
+    system: "Communicate with the user in English."
+  }
+};
+
+export const DEFAULT_LANG = "ru";
