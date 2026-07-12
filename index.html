@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Репетитор английского</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <h2>Настройки</h2>
+
+      <label class="field">
+        <span>Модель</span>
+        <div class="row">
+          <select id="model-select"></select>
+          <button id="refresh-models" title="Обновить список" type="button">⟳</button>
+        </div>
+      </label>
+
+      <label class="field">
+        <span>Стиль репетитора</span>
+        <select id="style-select"></select>
+      </label>
+
+      <button id="clear-chat" class="secondary" type="button">Очистить чат</button>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-header">
+        <button id="menu-toggle" class="icon" type="button" aria-label="Меню">☰</button>
+        <h1>Репетитор английского</h1>
+        <button id="theme-toggle" class="icon" type="button" aria-label="Тема">◐</button>
+      </header>
+
+      <div id="messages" class="messages" aria-live="polite"></div>
+
+      <form id="composer" class="composer">
+        <textarea id="input" rows="1" placeholder="Напишите фразу на английском…"></textarea>
+        <button id="send" type="submit">Отправить</button>
+        <button id="stop" type="button" class="danger" hidden>Стоп</button>
+      </form>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
