@@ -151,46 +151,70 @@ function restoreHistory() {
 }
 
 let controller = null;
+let liveBubble = null;
+let liveAcc = "";
 
 function setGenerating(on) {
-  $("send").hidden = on;
   $("stop").hidden = !on;
-  $("input").disabled = on;
+}
+
+// Finalize the in-progress assistant turn when it is interrupted (new send / stop).
+// Keeps any partial text so history and DOM stay in order; drops an empty bubble.
+function commitPartial() {
+  if (!liveBubble) return;
+  if (liveAcc.trim()) {
+    liveBubble.textContent = liveAcc;
+    state.messages.push({ role: "assistant", content: liveAcc });
+  } else {
+    liveBubble.remove();
+  }
+  liveBubble = null;
+  liveAcc = "";
+  saveState();
 }
 
 async function sendMessage(text) {
+  // A new send interrupts any running generation, finalizing its partial first
+  // so message order stays correct.
+  if (controller) { controller.abort(); controller = null; }
+  commitPartial();
+
   const msgs = buildMessages(state.style, state.messages, text);
   state.messages.push({ role: "user", content: text });
   renderMessage("user", text);
   saveState();
 
-  const bubble = renderMessage("assistant", "");
-  bubble.innerHTML = '<span class="cursor">▋</span>';
-  let acc = "";
-  controller = new AbortController();
+  liveBubble = renderMessage("assistant", "");
+  liveBubble.innerHTML = '<span class="cursor">▋</span>';
+  liveAcc = "";
+  const myController = new AbortController();
+  controller = myController;
   setGenerating(true);
 
   try {
-    for await (const delta of chatStream({ model: state.model, messages: msgs, signal: controller.signal })) {
-      acc += delta;
-      bubble.textContent = acc;
+    for await (const delta of chatStream({ model: state.model, messages: msgs, signal: myController.signal })) {
+      liveAcc += delta;
+      liveBubble.textContent = liveAcc;
       $("messages").scrollTop = $("messages").scrollHeight;
     }
-    if (acc.trim() === "") bubble.textContent = "(пустой ответ)";
-    state.messages.push({ role: "assistant", content: acc });
+    if (liveAcc.trim() === "") liveBubble.textContent = "(пустой ответ)";
+    state.messages.push({ role: "assistant", content: liveAcc });
+    liveBubble = null;
+    liveAcc = "";
     saveState();
   } catch (e) {
     if (e.name === "AbortError") {
-      state.messages.push({ role: "assistant", content: acc });
-      saveState();
+      // Interruption is finalized by commitPartial() (new send) or the stop handler.
     } else {
-      bubble.remove();
+      if (liveBubble) { liveBubble.remove(); liveBubble = null; liveAcc = ""; }
       renderMessage("error", "Ошибка связи с Ollama. Проверьте, что сервер запущен.");
       showToast("Ошибка: " + e.message);
     }
   } finally {
-    setGenerating(false);
-    controller = null;
+    if (controller === myController) {
+      setGenerating(false);
+      controller = null;
+    }
   }
 }
 
@@ -210,7 +234,7 @@ $("composer").addEventListener("submit", (e) => {
   e.preventDefault();
   const input = $("input");
   const text = input.value.trim();
-  if (!text || controller) return;
+  if (!text) return;
   input.value = "";
   input.style.height = "auto";
   sendMessage(text);
@@ -228,11 +252,18 @@ $("input").addEventListener("keydown", (e) => {
   }
 });
 
-$("stop").addEventListener("click", () => { if (controller) controller.abort(); });
+$("stop").addEventListener("click", () => {
+  if (controller) { controller.abort(); controller = null; }
+  commitPartial();
+  setGenerating(false);
+});
 
 $("clear-chat").addEventListener("click", () => {
-  if (controller) controller.abort();
+  if (controller) { controller.abort(); controller = null; }
+  liveBubble = null;
+  liveAcc = "";
   state.messages = [];
   saveState();
   $("messages").innerHTML = "";
+  setGenerating(false);
 });
