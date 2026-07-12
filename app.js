@@ -89,6 +89,88 @@ async function refreshModels() {
   }
 }
 
+async function* chatStream({ model, messages, signal }) {
+  const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model, messages, stream: true }),
+    signal
+  });
+  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let obj;
+      try { obj = JSON.parse(line); } catch { continue; }
+      if (obj.message && obj.message.content) yield obj.message.content;
+      if (obj.done) return;
+    }
+  }
+}
+
+function renderMessage(role, content) {
+  const el = document.createElement("div");
+  el.className = `msg ${role}`;
+  el.textContent = content;
+  const box = $("messages");
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+
+let controller = null;
+
+function setGenerating(on) {
+  $("send").hidden = on;
+  $("stop").hidden = !on;
+  $("input").disabled = on;
+}
+
+async function sendMessage(text) {
+  const msgs = buildMessages(state.style, state.messages, text);
+  state.messages.push({ role: "user", content: text });
+  renderMessage("user", text);
+  saveState();
+
+  const bubble = renderMessage("assistant", "");
+  bubble.innerHTML = '<span class="cursor">▋</span>';
+  let acc = "";
+  controller = new AbortController();
+  setGenerating(true);
+
+  try {
+    for await (const delta of chatStream({ model: state.model, messages: msgs, signal: controller.signal })) {
+      acc += delta;
+      bubble.textContent = acc;
+      $("messages").scrollTop = $("messages").scrollHeight;
+    }
+    if (acc.trim() === "") bubble.textContent = "(пустой ответ)";
+    state.messages.push({ role: "assistant", content: acc });
+    saveState();
+  } catch (e) {
+    if (e.name === "AbortError") {
+      state.messages.push({ role: "assistant", content: acc });
+      saveState();
+    } else {
+      bubble.remove();
+      renderMessage("error", "Ошибка связи с Ollama. Проверьте, что сервер запущен.");
+      showToast("Ошибка: " + e.message);
+    }
+  } finally {
+    setGenerating(false);
+    controller = null;
+  }
+}
+
 initTheme();
 $("theme-toggle").addEventListener("click", toggleTheme);
 $("menu-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
@@ -99,3 +181,27 @@ $("refresh-models").addEventListener("click", refreshModels);
 
 populateStyles();
 refreshModels();
+
+$("composer").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("input");
+  const text = input.value.trim();
+  if (!text || controller) return;
+  input.value = "";
+  input.style.height = "auto";
+  sendMessage(text);
+});
+
+$("input").addEventListener("input", (e) => {
+  e.target.style.height = "auto";
+  e.target.style.height = e.target.scrollHeight + "px";
+});
+
+$("input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    $("composer").requestSubmit();
+  }
+});
+
+$("stop").addEventListener("click", () => { if (controller) controller.abort(); });
