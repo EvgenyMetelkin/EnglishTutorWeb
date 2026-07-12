@@ -1,7 +1,7 @@
 import { STYLES, DEFAULT_STYLE, LANGUAGES, DEFAULT_LANG, SAMPLING, KEEP_ALIVE, formatPlanContext } from "./prompts.js";
 import { PLANS, DEFAULT_PLAN } from "./plans/all.js";
+import { OLLAMA_BASE } from "./config.js";
 
-const OLLAMA_BASE = "http://localhost:11434";
 const TURN_WINDOW = 4; // number of user+assistant pairs to send as context
 
 const KEYS = { model: "et.model", style: "et.style", lang: "et.lang", theme: "et.theme", messages: "et.messages", plan: "et.plan", planIndex: "et.planIndex" };
