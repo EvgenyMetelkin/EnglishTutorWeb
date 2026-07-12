@@ -40,6 +40,7 @@ apt install -y curl nginx
 Открываем порты 80 (веб) и 11434 (Ollama). Если используется `ufw`:
 
 ```bash
+ufw allow 22/tcp
 ufw allow 80/tcp
 ufw allow 11434/tcp
 ufw enable
@@ -48,12 +49,15 @@ ufw enable
 Если `iptables` напрямую (проверьте, что не блокируется `ufw`):
 
 ```bash
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 iptables -A INPUT -p tcp --dport 80 -j ACCEPT
 iptables -A INPUT -p tcp --dport 11434 -j ACCEPT
 ```
 
 > **Важно:** порт 11434 будет открыт для всего интернета. Если Ollama используется
 > кем-то ещё, ограничьте доступ: `ufw allow from <ваш_домашний_IP> to any port 11434`.
+>
+> Порт 22 (SSH) обязательно оставьте открытым, иначе вы потеряете доступ к серверу.
 
 ---
 
