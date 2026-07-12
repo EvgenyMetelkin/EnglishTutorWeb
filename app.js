@@ -21,10 +21,19 @@ function toggleTheme() {
 
 const $ = (id) => document.getElementById(id);
 
+function loadMessages() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(KEYS.messages) || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 const state = {
   model: localStorage.getItem(KEYS.model) || "llama3.2:3b",
   style: localStorage.getItem(KEYS.style) || DEFAULT_STYLE,
-  messages: JSON.parse(localStorage.getItem(KEYS.messages) || "[]")
+  messages: loadMessages()
 };
 
 function saveState() {
@@ -114,6 +123,14 @@ async function* chatStream({ model, messages, signal }) {
       if (obj.message && obj.message.content) yield obj.message.content;
       if (obj.done) return;
     }
+  }
+  buf += decoder.decode();
+  const rest = buf.trim();
+  if (rest) {
+    try {
+      const obj = JSON.parse(rest);
+      if (obj.message && obj.message.content) yield obj.message.content;
+    } catch { /* ignore trailing partial */ }
   }
 }
 
