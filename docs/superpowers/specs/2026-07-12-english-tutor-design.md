@@ -33,7 +33,7 @@ Plain ES modules loaded via `<script type="module">`. No framework.
 ```
 state = {
   model:    string,   // selected Ollama model, default "llama3.2:3b"
-  style:    string,    // key into prompts map, default "personal" or spec default
+  style:    string,    // key into prompts map, default "personal" (Личный репетитор)
   theme:    "light" | "dark" | null,  // null = follow system
   messages: [ { role: "user" | "assistant", content: string } ]
 }
