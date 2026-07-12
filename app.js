@@ -48,8 +48,9 @@ function buildMessages(style, lang, history, input) {
   const styleDef = STYLES[style] || STYLES[DEFAULT_STYLE];
   const langPrompt = (LANGUAGES[lang] || LANGUAGES[DEFAULT_LANG]).system;
   const sys = { role: "system", content: `${styleDef.system} ${langPrompt}` };
+  const examples = (styleDef.examples && styleDef.examples[lang]) || [];
   const window = history.slice(-TURN_WINDOW * 2);
-  return [sys, ...window, { role: "user", content: input }];
+  return [sys, ...examples, ...window, { role: "user", content: input }];
 }
 
 function styleOptions(style) {
@@ -118,11 +119,11 @@ async function refreshModels() {
   }
 }
 
-async function* chatStream({ model, messages, signal }) {
+async function* chatStream({ model, messages, options, signal }) {
   const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages, stream: true }),
+    body: JSON.stringify({ model, messages, stream: true, keep_alive: KEEP_ALIVE, options }),
     signal
   });
   if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
@@ -212,7 +213,7 @@ async function sendMessage(text) {
   setGenerating(true);
 
   try {
-    for await (const delta of chatStream({ model: state.model, messages: msgs, signal: myController.signal })) {
+    for await (const delta of chatStream({ model: state.model, messages: msgs, options: styleOptions(state.style), signal: myController.signal })) {
       liveAcc += delta;
       liveBubble.textContent = liveAcc;
       $("messages").scrollTop = $("messages").scrollHeight;
