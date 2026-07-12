@@ -39,6 +39,63 @@ function buildMessages(style, history, input) {
   return [sys, ...window, { role: "user", content: input }];
 }
 
+let toastTimer;
+function showToast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 4000);
+}
+
+function populateStyles() {
+  const sel = $("style-select");
+  sel.innerHTML = "";
+  for (const [key, { label }] of Object.entries(STYLES)) {
+    const opt = document.createElement("option");
+    opt.value = key; opt.textContent = label;
+    if (key === state.style) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+async function listModels() {
+  const res = await fetch(`${OLLAMA_BASE}/api/tags`);
+  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.models || []).map((m) => m.name);
+}
+
+function populateModels(names) {
+  const sel = $("model-select");
+  sel.innerHTML = "";
+  const all = names.includes(state.model) ? names : [state.model, ...names];
+  for (const name of all) {
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    if (name === state.model) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+async function refreshModels() {
+  try {
+    const names = await listModels();
+    populateModels(names);
+    if (names.length === 0) showToast("Модели не найдены в Ollama.");
+  } catch (e) {
+    populateModels([]);
+    showToast("Не удалось получить список моделей. Ollama запущен?");
+  }
+}
+
 initTheme();
 $("theme-toggle").addEventListener("click", toggleTheme);
 $("menu-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+
+$("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); });
+$("model-select").addEventListener("change", (e) => { state.model = e.target.value; saveState(); });
+$("refresh-models").addEventListener("click", refreshModels);
+
+populateStyles();
+refreshModels();
