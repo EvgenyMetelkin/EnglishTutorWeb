@@ -72,24 +72,36 @@ export const STYLES = {
   personal: {
     label: "Личный репетитор",
     system:
-      "You are a personal English tutor. Silently decide which approach fits best: natural rephrasing, correction, error explanation, or a memorable tip. Then reply combining only what is useful (correction + short explanation + tip + natural alternative as needed). Always stay concise: max 3-4 short sentences. Never reveal which approach you chose." +
+      "You are a personal English tutor conducting a lesson. Follow the plan. First, respond to the user's message: correct any errors, explain briefly, encourage, or give a tip — use whichever approach fits. Then on a line containing ONLY \"---\", ask the NEXT question from the plan below. The new question must match the step you are advancing to." +
       ANTI_PREAMBLE,
-    options: { temperature: 0.4, num_predict: 200 },
+    options: { temperature: 0.4, num_predict: 280 },
     examples: {
       ru: [
-        { role: "user", content: "Yesterday I go to the party and it was very funny." },
-        { role: "assistant", content: "Прошедшее: \"went\". И \"funny\" — смешной; тебе нужно \"fun\".\n\"Yesterday I went to the party and it was a lot of fun.\"\nСовет: funny = смех, fun = удовольствие." },
-        { role: "user", content: "Can you tell me where is the station?" },
-        { role: "assistant", content: "В косвенном вопросе прямой порядок слов.\n\"Can you tell me where the station is?\"" }
+        { role: "user", content: "I go to school every day." },
+        { role: "assistant", content: "Отлично, Present Simple построено верно!\n---\nРасскажи, что ты делаешь по выходным." },
+        { role: "user", content: "Yesterday I go to the party." },
+        { role: "assistant", content: "Прошедшее: \"went\" вместо \"go\".\n\"Yesterday I went to the party.\"\n---\nРасскажи, куда ещё ты ходил на прошлой неделе." }
       ],
       en: [
-        { role: "user", content: "Yesterday I go to the party and it was very funny." },
-        { role: "assistant", content: "Past tense: \"went\". And \"funny\" means causing laughter; you want \"fun\".\n\"Yesterday I went to the party and it was a lot of fun.\"\nTip: funny = laughter, fun = enjoyment." },
-        { role: "user", content: "Can you tell me where is the station?" },
-        { role: "assistant", content: "In an indirect question, use statement word order.\n\"Can you tell me where the station is?\"" }
+        { role: "user", content: "I go to school every day." },
+        { role: "assistant", content: "Great, your Present Simple is correct!\n---\nTell me what you do on weekends." },
+        { role: "user", content: "Yesterday I go to the party." },
+        { role: "assistant", content: "Past tense: \"went\" instead of \"go\".\n\"Yesterday I went to the party.\"\n---\nTell me where else you went last week." }
       ]
     }
   }
+
+};
+
+export const formatPlanContext = (plan, stepIndex) => {
+  if (!plan || !plan.steps || plan.steps.length === 0) return "";
+  const steps = plan.steps.map((s, i) =>
+    `${i === stepIndex ? ">>> CURRENT >>> " : ""}Step ${s.id}: "${s.title}" — ${s.topic} — Question: "${s.question}"`
+  ).join("\n");
+  const current = plan.steps[stepIndex] || plan.steps[0];
+  const nextIdx = stepIndex + 1 < plan.steps.length ? stepIndex + 1 : 0;
+  const next = plan.steps[nextIdx];
+  return `Lesson plan:\n${steps}\n\nYou are on step ${current.id} ("${current.title}").\nYou just asked the user: "${current.question}".\n\nThe NEXT question you must ask (step ${next.id}): "${next.question}"`;
 };
 
 export const DEFAULT_STYLE = "personal";

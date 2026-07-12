@@ -1,9 +1,10 @@
-import { STYLES, DEFAULT_STYLE, LANGUAGES, DEFAULT_LANG, SAMPLING, KEEP_ALIVE } from "./prompts.js";
+import { STYLES, DEFAULT_STYLE, LANGUAGES, DEFAULT_LANG, SAMPLING, KEEP_ALIVE, formatPlanContext } from "./prompts.js";
+import { PLANS, DEFAULT_PLAN } from "./plans/all.js";
 
 const OLLAMA_BASE = "http://localhost:11434";
 const TURN_WINDOW = 4; // number of user+assistant pairs to send as context
 
-const KEYS = { model: "et.model", style: "et.style", lang: "et.lang", theme: "et.theme", messages: "et.messages" };
+const KEYS = { model: "et.model", style: "et.style", lang: "et.lang", theme: "et.theme", messages: "et.messages", plan: "et.plan", planIndex: "et.planIndex" };
 
 function initTheme() {
   const saved = localStorage.getItem(KEYS.theme);
@@ -34,6 +35,8 @@ const state = {
   model: localStorage.getItem(KEYS.model) || "llama3.2:3b",
   style: localStorage.getItem(KEYS.style) || DEFAULT_STYLE,
   lang: localStorage.getItem(KEYS.lang) || DEFAULT_LANG,
+  plan: localStorage.getItem(KEYS.plan) || DEFAULT_PLAN,
+  planIndex: parseInt(localStorage.getItem(KEYS.planIndex) || "0"),
   messages: loadMessages()
 };
 
@@ -41,13 +44,25 @@ function saveState() {
   localStorage.setItem(KEYS.model, state.model);
   localStorage.setItem(KEYS.style, state.style);
   localStorage.setItem(KEYS.lang, state.lang);
+  localStorage.setItem(KEYS.plan, state.plan);
+  localStorage.setItem(KEYS.planIndex, String(state.planIndex));
   localStorage.setItem(KEYS.messages, JSON.stringify(state.messages));
+}
+
+function activePlan() {
+  return PLANS[state.plan] || PLANS[DEFAULT_PLAN];
 }
 
 function buildMessages(style, lang, history, input) {
   const styleDef = STYLES[style] || STYLES[DEFAULT_STYLE];
   const langPrompt = (LANGUAGES[lang] || LANGUAGES[DEFAULT_LANG]).system;
-  const sys = { role: "system", content: `${styleDef.system} ${langPrompt}` };
+  let sysText = `${styleDef.system} ${langPrompt}`;
+  if (style === "personal") {
+    const plan = activePlan();
+    const context = formatPlanContext(plan, state.planIndex);
+    if (context) sysText += "\n\n" + context;
+  }
+  const sys = { role: "system", content: sysText };
   const examples = (styleDef.examples && styleDef.examples[lang]) || [];
   const window = history.slice(-TURN_WINDOW * 2);
   return [sys, ...examples, ...window, { role: "user", content: input }];
@@ -87,6 +102,18 @@ function populateLanguages() {
     if (key === state.lang) opt.selected = true;
     sel.appendChild(opt);
   }
+}
+
+function populatePlans() {
+  const sel = $("plan-select");
+  sel.innerHTML = "";
+  for (const [key, plan] of Object.entries(PLANS)) {
+    const opt = document.createElement("option");
+    opt.value = key; opt.textContent = plan.name;
+    if (key === state.plan) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  $("plan-field").hidden = state.style !== "personal";
 }
 
 async function listModels() {
@@ -212,22 +239,63 @@ async function sendMessage(text) {
   controller = myController;
   setGenerating(true);
 
+  const isPersonal = state.style === "personal";
+  let liveQuestionBubble = null;
+  let splitDone = false;
+
   try {
     for await (const delta of chatStream({ model: state.model, messages: msgs, options: styleOptions(state.style), signal: myController.signal })) {
-      liveAcc += delta;
-      liveBubble.textContent = liveAcc;
+      if (isPersonal && !splitDone) {
+        liveAcc += delta;
+        // Detect delimiter: "\n---\n" or starting "---\n"
+        const dm = liveAcc.indexOf("\n---\n");
+        const dmStart = dm === -1 && liveAcc.startsWith("---\n") ? 0 : -1;
+        const delimIdx = dm !== -1 ? dm : dmStart;
+        if (delimIdx !== -1) {
+          const before = liveAcc.slice(0, delimIdx).trim();
+          const after = liveAcc.slice(delimIdx + (dm !== -1 ? 5 : 4)).trim(); // skip "\n---\n" or "---\n"
+          if (before) { liveBubble.textContent = before; state.messages.push({ role: "assistant", content: before }); }
+          else { liveBubble.remove(); }
+          saveState();
+          liveQuestionBubble = renderMessage("assistant", "");
+          liveQuestionBubble.innerHTML = '<span class="cursor">▋</span>';
+          liveAcc = after;
+          liveBubble = liveQuestionBubble;
+          splitDone = true;
+        } else {
+          liveBubble.textContent = liveAcc;
+        }
+      } else {
+        liveAcc += delta;
+        liveBubble.textContent = liveAcc;
+      }
       $("messages").scrollTop = $("messages").scrollHeight;
     }
-    if (liveAcc.trim() === "") liveBubble.textContent = "(пустой ответ)";
-    state.messages.push({ role: "assistant", content: liveAcc });
+    if (liveAcc.trim() === "") {
+      if (liveBubble && liveBubble !== liveQuestionBubble) liveBubble.textContent = "(пустой ответ)";
+      else if (liveBubble) liveBubble.textContent = "";
+    }
+    if (liveAcc.trim()) {
+      state.messages.push({ role: "assistant", content: liveAcc });
+    }
     liveBubble = null;
+    liveQuestionBubble = null;
     liveAcc = "";
     saveState();
+
+    // Advance plan step after successful personal exchange
+    if (isPersonal) {
+      state.planIndex++;
+      const plan = activePlan();
+      if (state.planIndex >= plan.steps.length) state.planIndex = 0;
+      saveState();
+    }
   } catch (e) {
     if (e.name === "AbortError") {
       // Interruption is finalized by commitPartial() (new send) or the stop handler.
     } else {
       if (liveBubble) { liveBubble.remove(); liveBubble = null; liveAcc = ""; }
+      if (liveQuestionBubble) { liveQuestionBubble.remove(); liveQuestionBubble = null; }
       renderMessage("error", "Ошибка связи с Ollama. Проверьте, что сервер запущен.");
       showToast("Ошибка: " + e.message);
     }
@@ -243,13 +311,15 @@ initTheme();
 $("theme-toggle").addEventListener("click", toggleTheme);
 $("menu-toggle").addEventListener("click", () => $("sidebar").classList.toggle("open"));
 
-$("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); });
+$("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); populatePlans(); });
 $("lang-select").addEventListener("change", (e) => { state.lang = e.target.value; saveState(); });
+$("plan-select").addEventListener("change", (e) => { state.plan = e.target.value; state.planIndex = 0; saveState(); });
 $("model-select").addEventListener("change", (e) => { state.model = e.target.value; saveState(); });
 $("refresh-models").addEventListener("click", refreshModels);
 
 populateStyles();
 populateLanguages();
+populatePlans();
 restoreHistory();
 refreshModels();
 
