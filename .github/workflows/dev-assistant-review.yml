@@ -74,23 +74,22 @@ jobs:
         if: steps.check.outputs.configured == 'true'
         working-directory: project
         run: |
-          REVIEW=$(node ../dev-assistant/packages/cli/dist/index.js review-pr \
+          node ../dev-assistant/packages/cli/dist/index.js review-pr \
             --base "origin/${{ github.event.pull_request.base.ref }}" \
-            --format markdown)
-          echo "review<<EOF" >> $GITHUB_OUTPUT
-          echo "$REVIEW" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+            --format markdown > review-output.md
+          echo "has_review=true" >> $GITHUB_OUTPUT
         env:
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'openai' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4o' }}
 
       - name: Post review comment
-        if: steps.check.outputs.configured == 'true' && steps.review.outputs.review != ''
+        if: steps.check.outputs.configured == 'true' && steps.review.outputs.has_review == 'true'
         uses: actions/github-script@v7
         with:
           script: |
-            const review = `${{ steps.review.outputs.review }}`;
+            const fs = require('fs');
+            const review = fs.readFileSync('project/review-output.md', 'utf8');
             if (!review || review === 'No changes to review.') return;
 
             github.rest.issues.createComment({
