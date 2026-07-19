@@ -25,23 +25,37 @@ jobs:
             echo "configured=false" >> $GITHUB_OUTPUT
           fi
 
-      - uses: actions/checkout@v4
+      - name: Checkout PR
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          path: project
+
+      - name: Checkout Dev Assistant
+        if: steps.check.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.DEV_ASSISTANT_REPO || github.repository }}
+          ref: ${{ vars.DEV_ASSISTANT_REF || 'main' }}
+          path: dev-assistant
 
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.configured == 'true'
         with:
           node-version: 20
 
-      - name: Install Deps
-        run: npm install
-
-      - name: Build
-        run: npm run build --workspace=packages/core --workspace=packages/cli
+      - name: Build Dev Assistant
+        if: steps.check.outputs.configured == 'true'
+        working-directory: dev-assistant
+        run: |
+          npm install
+          npm run build --workspace=packages/core --workspace=packages/cli
 
       - name: Build RAG index
         if: steps.check.outputs.configured == 'true'
-        run: node packages/cli/dist/index.js index
+        working-directory: project
+        run: |
+          node ../dev-assistant/packages/cli/dist/index.js index
         env:
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'openai' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -50,9 +64,10 @@ jobs:
       - name: Run AI review
         id: review
         if: steps.check.outputs.configured == 'true'
+        working-directory: project
         run: |
-          REVIEW=$(node packages/cli/dist/index.js review-pr \
-            --base ${{ github.event.pull_request.base.ref }} \
+          REVIEW=$(node ../dev-assistant/packages/cli/dist/index.js review-pr \
+            --base "origin/${{ github.event.pull_request.base.ref }}" \
             --format markdown)
           echo "review<<EOF" >> $GITHUB_OUTPUT
           echo "$REVIEW" >> $GITHUB_OUTPUT
