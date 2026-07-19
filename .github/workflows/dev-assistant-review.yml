@@ -44,13 +44,30 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Ollama (for embeddings)
+      - name: Install Ollama
         if: steps.check.outputs.configured == 'true'
         run: |
           curl -fsSL https://ollama.com/install.sh | sh
+
+      - name: Restore Ollama model cache
+        if: steps.check.outputs.configured == 'true'
+        id: ollama-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama/models
+          key: ollama-models-nomic-embed-text-v1
+
+      - name: Start Ollama & pull model
+        if: steps.check.outputs.configured == 'true'
+        run: |
           ollama serve &
-          sleep 3
-          ollama pull nomic-embed-text:latest
+          sleep 2
+          if ! ollama list | grep -q nomic-embed-text; then
+            echo "Pulling nomic-embed-text..."
+            ollama pull nomic-embed-text:latest
+          else
+            echo "nomic-embed-text already cached"
+          fi
 
       - name: Build Dev Assistant
         if: steps.check.outputs.configured == 'true'
