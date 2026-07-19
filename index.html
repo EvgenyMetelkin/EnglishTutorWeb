@@ -86,6 +86,18 @@
     </div>
   </div>
 
+  <div id="auth-overlay" class="auth-overlay" hidden>
+    <div class="auth-card" id="auth-card">
+      <h1>English Tutor</h1>
+      <p class="auth-desc">Введите пароль для входа</p>
+      <form id="auth-form">
+        <input id="auth-password" type="password" placeholder="Пароль" autocomplete="current-password" />
+        <p id="auth-error" class="auth-error"></p>
+        <button id="auth-submit" type="submit">Войти</button>
+      </form>
+    </div>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
