@@ -139,3 +139,19 @@ button.icon { border: none; background: none; font-size: 1.2rem; padding: 4px 8p
   75% { transform: translateX(6px); }
 }
 .shake { animation: shake .3s ease-in-out; }
+
+/* Microphone button */
+.mic-btn {
+  font-size: 1.3rem; padding: 6px 8px; border-radius: 50%;
+  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.mic-btn.listening {
+  background: var(--danger); color: #fff; border-color: var(--danger);
+  animation: mic-pulse 1.5s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, .4); }
+  50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+}
+.input-interim { color: var(--muted); font-style: italic; }
