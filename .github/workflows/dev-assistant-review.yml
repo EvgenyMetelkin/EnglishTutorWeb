@@ -44,6 +44,14 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install Ollama (for embeddings)
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 3
+          ollama pull nomic-embed-text:latest
+
       - name: Build Dev Assistant
         if: steps.check.outputs.configured == 'true'
         working-directory: dev-assistant
