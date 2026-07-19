@@ -112,3 +112,30 @@ button.icon { border: none; background: none; font-size: 1.2rem; padding: 4px 8p
   .sidebar { width: 140px; padding: 10px; font-size: .8rem; }
   .sidebar-header h2 { font-size: .9rem; }
 }
+
+/* Login overlay */
+.auth-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-overlay[hidden] { display: none; }
+.auth-card {
+  background: var(--panel); border-radius: 16px; padding: 32px 28px;
+  max-width: 360px; width: calc(100% - 32px);
+  box-shadow: 0 4px 24px rgba(0,0,0,.15); text-align: center;
+}
+.auth-card h1 { margin: 0 0 8px; font-size: 1.3rem; }
+.auth-desc { color: var(--muted); font-size: .9rem; margin: 0 0 20px; }
+.auth-card input[type="password"] {
+  width: 100%; padding: 10px 14px; font-size: 1rem; margin-bottom: 8px;
+}
+.auth-error { color: var(--danger); font-size: .85rem; margin: 0 0 12px; min-height: 1.2em; }
+.auth-error:empty { visibility: hidden; }
+.auth-card button { width: 100%; padding: 10px; font-size: 1rem; cursor: pointer; }
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+.shake { animation: shake .3s ease-in-out; }
