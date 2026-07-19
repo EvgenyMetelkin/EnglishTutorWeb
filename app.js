@@ -186,6 +186,7 @@ function populateModels(names) {
 }
 
 async function refreshModels() {
+  if (state.provider !== "ollama") return;
   try {
     const names = await listModels();
     populateModels(names);
