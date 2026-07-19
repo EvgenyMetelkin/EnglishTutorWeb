@@ -319,7 +319,7 @@ async function sendMessage(text) {
     } else {
       if (liveBubble) { liveBubble.remove(); liveBubble = null; liveAcc = ""; }
       if (liveQuestionBubble) { liveQuestionBubble.remove(); liveQuestionBubble = null; }
-      renderMessage("error", "Ошибка связи с Ollama. Проверьте, что сервер запущен.");
+      renderMessage("error", state.provider === "ollama" ? "Ошибка связи с Ollama. Проверьте, что сервер запущен." : "Ошибка связи с сервером.");
       showToast("Ошибка: " + e.message);
     }
   } finally {
