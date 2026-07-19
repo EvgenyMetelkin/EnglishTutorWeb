@@ -17,6 +17,7 @@
       <div id="messages" class="messages" aria-live="polite"></div>
 
       <form id="composer" class="composer">
+        <button id="mic-btn" class="mic-btn" type="button" aria-label="Голосовой ввод" title="Голосовой ввод" hidden>🎤</button>
         <textarea id="input" rows="1" placeholder="Напишите фразу на английском…"></textarea>
         <button id="send" type="submit">Отправить</button>
         <button id="stop" type="button" class="danger" hidden>Стоп</button>
@@ -29,6 +30,11 @@
         <h2>Настройки</h2>
         <button id="info-toggle" class="icon" type="button" aria-label="Информация">ℹ</button>
       </div>
+
+      <label class="field">
+        <span>Провайдер</span>
+        <select id="provider-select"></select>
+      </label>
 
       <label class="field">
         <span>Модель</span>
@@ -54,6 +60,7 @@
       </label>
 
       <button id="clear-chat" class="secondary" type="button">Очистить чат</button>
+      <button id="logout-btn" class="secondary" type="button" style="margin-top:8px">Выйти</button>
     </aside>
   </div>
 
@@ -83,6 +90,18 @@
         <dt>Личный репетитор</dt>
         <dd>Проводит занятие по плану урока. Обрабатывает ответ пользователя (исправляет, объясняет, даёт совет) и затем задаёт следующий вопрос из плана. В боковой панели можно выбрать план урока.</dd>
       </dl>
+    </div>
+  </div>
+
+  <div id="auth-overlay" class="auth-overlay" hidden>
+    <div class="auth-card" id="auth-card">
+      <h1>English Tutor</h1>
+      <p class="auth-desc">Введите пароль для входа</p>
+      <form id="auth-form">
+        <input id="auth-password" type="password" placeholder="Пароль" autocomplete="current-password" />
+        <p id="auth-error" class="auth-error"></p>
+        <button id="auth-submit" type="submit">Войти</button>
+      </form>
     </div>
   </div>
 
