@@ -34,14 +34,14 @@ jobs:
           node-version: 20
 
       - name: Install Deps
-        run: npm ci
+        run: npm install
 
       - name: Build
-        run: npm run build
+        run: npm run build --workspace=packages/core --workspace=packages/cli
 
       - name: Build RAG index
         if: steps.check.outputs.configured == 'true'
-        run: npx dev-assistant index
+        run: node packages/cli/dist/index.js index
         env:
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'openai' }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
@@ -51,7 +51,7 @@ jobs:
         id: review
         if: steps.check.outputs.configured == 'true'
         run: |
-          REVIEW=$(npx dev-assistant review-pr \
+          REVIEW=$(node packages/cli/dist/index.js review-pr \
             --base ${{ github.event.pull_request.base.ref }} \
             --format markdown)
           echo "review<<EOF" >> $GITHUB_OUTPUT
