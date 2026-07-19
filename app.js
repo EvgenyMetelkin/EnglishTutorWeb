@@ -1,10 +1,13 @@
 import { STYLES, DEFAULT_STYLE, LANGUAGES, DEFAULT_LANG, SAMPLING, KEEP_ALIVE, formatPlanContext } from "./prompts.js";
 import { PLANS, DEFAULT_PLAN } from "./plans/all.js";
-import { OLLAMA_BASE } from "./config.js";
+import { PROVIDERS, DEFAULT_PROVIDER, DEFAULT_CLOUD_MODEL, OLLAMA_BASE } from "./config.js";
+import { ollamaStream, cloudStream } from "./providers.js";
+import { checkAuth, login, logout, showLoginOverlay, hideLoginOverlay } from "./auth.js";
+import { SpeechInput } from "./speech.js";
 
 const TURN_WINDOW = 4; // number of user+assistant pairs to send as context
 
-const KEYS = { model: "et.model", style: "et.style", lang: "et.lang", theme: "et.theme", messages: "et.messages", plan: "et.plan", planIndex: "et.planIndex" };
+const KEYS = { provider: "et.provider", style: "et.style", lang: "et.lang", theme: "et.theme", messages: "et.messages", plan: "et.plan", planIndex: "et.planIndex" };
 
 function initTheme() {
   const saved = localStorage.getItem(KEYS.theme);
@@ -31,8 +34,18 @@ function loadMessages() {
   }
 }
 
+function resolveModel() {
+  const provider = localStorage.getItem(KEYS.provider) || DEFAULT_PROVIDER;
+  const savedModel = localStorage.getItem(`et.model.${provider}`);
+  if (savedModel) return savedModel;
+  const list = PROVIDERS[provider]?.models || [];
+  if (list.length > 0) return list[0];
+  return provider === "ollama" ? "llama3.2:3b" : (DEFAULT_CLOUD_MODEL[provider] || "");
+}
+
 const state = {
-  model: localStorage.getItem(KEYS.model) || "llama3.2:3b",
+  provider: localStorage.getItem(KEYS.provider) || DEFAULT_PROVIDER,
+  model: resolveModel(),
   style: localStorage.getItem(KEYS.style) || DEFAULT_STYLE,
   lang: localStorage.getItem(KEYS.lang) || DEFAULT_LANG,
   plan: localStorage.getItem(KEYS.plan) || DEFAULT_PLAN,
@@ -41,7 +54,8 @@ const state = {
 };
 
 function saveState() {
-  localStorage.setItem(KEYS.model, state.model);
+  localStorage.setItem(KEYS.provider, state.provider);
+  localStorage.setItem(`et.model.${state.provider}`, state.model);
   localStorage.setItem(KEYS.style, state.style);
   localStorage.setItem(KEYS.lang, state.lang);
   localStorage.setItem(KEYS.plan, state.plan);
@@ -116,6 +130,42 @@ function populatePlans() {
   $("plan-field").hidden = state.style !== "personal";
 }
 
+function populateProviders() {
+  const sel = $("provider-select");
+  sel.innerHTML = "";
+  for (const [key, { label }] of Object.entries(PROVIDERS)) {
+    const opt = document.createElement("option");
+    opt.value = key; opt.textContent = label;
+    if (key === state.provider) opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function populateModelList() {
+  const sel = $("model-select");
+  sel.innerHTML = "";
+  const list = PROVIDERS[state.provider]?.models || [];
+  const refreshBtn = $("refresh-models");
+  refreshBtn.hidden = state.provider !== "ollama";
+
+  if (state.provider === "ollama") {
+    refreshModels();
+    return;
+  }
+
+  for (const name of list) {
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    if (name === state.model) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  if (!list.includes(state.model) && list.length > 0) {
+    state.model = list[0];
+    sel.value = state.model;
+    saveState();
+  }
+}
+
 async function listModels() {
   const res = await fetch(`${OLLAMA_BASE}/api/tags`);
   if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
@@ -147,38 +197,10 @@ async function refreshModels() {
 }
 
 async function* chatStream({ model, messages, options, signal }) {
-  const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model, messages, stream: true, keep_alive: KEEP_ALIVE, options }),
-    signal
-  });
-  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    let nl;
-    while ((nl = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, nl).trim();
-      buf = buf.slice(nl + 1);
-      if (!line) continue;
-      let obj;
-      try { obj = JSON.parse(line); } catch { continue; }
-      if (obj.message && obj.message.content) yield obj.message.content;
-      if (obj.done) return;
-    }
-  }
-  buf += decoder.decode();
-  const rest = buf.trim();
-  if (rest) {
-    try {
-      const obj = JSON.parse(rest);
-      if (obj.message && obj.message.content) yield obj.message.content;
-    } catch { /* ignore trailing partial */ }
+  if (state.provider === "ollama") {
+    yield* ollamaStream({ model, messages, options, signal });
+  } else {
+    yield* cloudStream({ provider: state.provider, model, messages, options, signal });
   }
 }
 
@@ -307,58 +329,125 @@ async function sendMessage(text) {
   }
 }
 
-initTheme();
-$("theme-toggle").addEventListener("click", toggleTheme);
-$("info-toggle").addEventListener("click", () => { $("info-overlay").hidden = false; });
-$("info-close").addEventListener("click", () => { $("info-overlay").hidden = true; });
-$("info-overlay").addEventListener("click", (e) => { if (e.target === $("info-overlay")) $("info-overlay").hidden = true; });
+const initApp = () => {
+  initTheme();
+  $("theme-toggle").addEventListener("click", toggleTheme);
+  $("info-toggle").addEventListener("click", () => { $("info-overlay").hidden = false; });
+  $("info-close").addEventListener("click", () => { $("info-overlay").hidden = true; });
+  $("info-overlay").addEventListener("click", (e) => { if (e.target === $("info-overlay")) $("info-overlay").hidden = true; });
 
-$("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); populatePlans(); });
-$("lang-select").addEventListener("change", (e) => { state.lang = e.target.value; saveState(); });
-$("plan-select").addEventListener("change", (e) => { state.plan = e.target.value; state.planIndex = 0; saveState(); });
-$("model-select").addEventListener("change", (e) => { state.model = e.target.value; saveState(); });
-$("refresh-models").addEventListener("click", refreshModels);
+  $("provider-select").addEventListener("change", (e) => { state.provider = e.target.value; populateModelList(); saveState(); });
+  $("style-select").addEventListener("change", (e) => { state.style = e.target.value; saveState(); populatePlans(); });
+  $("lang-select").addEventListener("change", (e) => { state.lang = e.target.value; saveState(); });
+  $("plan-select").addEventListener("change", (e) => { state.plan = e.target.value; state.planIndex = 0; saveState(); });
+  $("model-select").addEventListener("change", (e) => { state.model = e.target.value; saveState(); });
+  $("refresh-models").addEventListener("click", refreshModels);
 
-populateStyles();
-populateLanguages();
-populatePlans();
-restoreHistory();
-refreshModels();
+  populateProviders();
+  populateModelList();
+  populateStyles();
+  populateLanguages();
+  populatePlans();
+  restoreHistory();
 
-$("composer").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const input = $("input");
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = "";
-  input.style.height = "auto";
-  sendMessage(text);
-});
-
-$("input").addEventListener("input", (e) => {
-  e.target.style.height = "auto";
-  e.target.style.height = e.target.scrollHeight + "px";
-});
-
-$("input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
+  $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
-    $("composer").requestSubmit();
+    const input = $("input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    input.style.height = "auto";
+    sendMessage(text);
+  });
+
+  $("input").addEventListener("input", (e) => {
+    e.target.style.height = "auto";
+    e.target.style.height = e.target.scrollHeight + "px";
+  });
+
+  $("input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      $("composer").requestSubmit();
+    }
+  });
+
+  $("stop").addEventListener("click", () => {
+    if (controller) { controller.abort(); controller = null; }
+    commitPartial();
+    setGenerating(false);
+  });
+
+  $("clear-chat").addEventListener("click", () => {
+    if (controller) { controller.abort(); controller = null; }
+    liveBubble = null;
+    liveAcc = "";
+    state.messages = [];
+    saveState();
+    $("messages").innerHTML = "";
+    setGenerating(false);
+  });
+
+  $("logout-btn").addEventListener("click", logout);
+
+  const micBtn = $("mic-btn");
+  if (SpeechInput.isSupported()) {
+    micBtn.hidden = false;
+    const speech = new SpeechInput({
+      onResult: (text) => {
+        const input = $("input");
+        input.value = text;
+        input.classList.remove("input-interim");
+        input.focus();
+        micBtn.classList.remove("listening");
+      },
+      onInterim: (text) => {
+        const input = $("input");
+        input.value = text;
+        input.classList.add("input-interim");
+      },
+      onError: (msg) => {
+        showToast(msg);
+        micBtn.classList.remove("listening");
+      }
+    });
+    micBtn.addEventListener("click", () => {
+      if (speech.isListening()) {
+        speech.stop();
+        micBtn.classList.remove("listening");
+        $("input").classList.remove("input-interim");
+      } else {
+        $("input").value = "";
+        $("input").classList.remove("input-interim");
+        speech.start();
+        micBtn.classList.add("listening");
+      }
+    });
+  }
+
+  hideLoginOverlay();
+};
+
+$("auth-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const pwd = $("auth-password").value;
+  const errEl = $("auth-error");
+  const card = document.getElementById("auth-card");
+  try {
+    await login(pwd);
+    errEl.textContent = "";
+    initApp();
+  } catch (err) {
+    errEl.textContent = "Неверный пароль";
+    card.classList.add("shake");
+    setTimeout(() => card.classList.remove("shake"), 300);
+    $("auth-password").value = "";
+    $("auth-password").focus();
   }
 });
 
-$("stop").addEventListener("click", () => {
-  if (controller) { controller.abort(); controller = null; }
-  commitPartial();
-  setGenerating(false);
-});
-
-$("clear-chat").addEventListener("click", () => {
-  if (controller) { controller.abort(); controller = null; }
-  liveBubble = null;
-  liveAcc = "";
-  state.messages = [];
-  saveState();
-  $("messages").innerHTML = "";
-  setGenerating(false);
-});
+if (checkAuth()) {
+  initApp();
+} else {
+  showLoginOverlay();
+}
